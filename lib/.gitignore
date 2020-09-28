@@ -1,0 +1,13 @@
+test.ipynb
+.ipynb_checkpoints
+*.o
+*.pcm
+*.so
+*.d
+*.pcm
+*.pyc
+__pycache__
+.settings
+.project
+.cproject
+tmp
