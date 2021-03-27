@@ -68,8 +68,9 @@ specfit_so_objects     += $(SPECFITTMPDIR)/libspecfitDict$(OBJ)
 htmldoc=$(SPECFIT)/htmldoc
 
 #################### TARGETS ###################
-.PHONY: all clean cleanall
-all: $(specfit_so) $(htmldoc)
+.PHONY: all htmldoc clean cleanall
+all: $(specfit_so)
+htmldoc: $(htmldoc)
 
 $(specfit_so): $(specfit_so_objects); \
 $(CPP) $(OPTOPT) -shared $^ $(ROOTLIBS) -o $@; \

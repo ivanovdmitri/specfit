@@ -93,8 +93,7 @@ target_link_libraries(specfit ${ROOT_LIBRARIES} -L${ROOT_LIBRARY_DIR} -lMinuit)
 # Python library files
 set(PYFILES
   encorr_functions.py
-  flux_functions.py  
-  cr_flux_data.py  
+  flux_functions.py
   specfit_cpplib.py
   )
 file(INSTALL ${PYFILES} DESTINATION ${CMAKE_BINARY_DIR})
@@ -111,11 +110,11 @@ set(ROOT_MACRO_FILES load_specfit_cpplib.C generate_specfit_htmldoc.C)
 file(INSTALL ${ROOT_MACRO_FILES} DESTINATION ${CMAKE_BINARY_DIR})
 
 # HTML documentation
-add_custom_target(htmldoc ALL DEPENDS specfit ${ROOT_MACRO_FILES})
+add_custom_target(htmldoc DEPENDS specfit ${ROOT_MACRO_FILES})
 add_custom_command(
     TARGET htmldoc
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-    COMMAND ${ROOT_EXECUTABLE} -l -b -q generate_specfit_htmldoc.C >& /dev/null
+    COMMAND ${ROOT_EXECUTABLE} -l -b -q generate_specfit_htmldoc.C 1> /dev/null 2>/dev/null
 )
 
 

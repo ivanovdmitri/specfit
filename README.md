@@ -63,9 +63,11 @@ python2 ./specfit.py --help | more
 
 ## Tested:
 
+* Ubuntu 20.04.2 LTS, g++ (Ubuntu 9.3.0-17ubuntu1~20.04) 9.3.0, Python 3.8.5, ROOT 6.23/9
+* Ubuntu 20.04.2 LTS, g++ (Ubuntu 9.3.0-17ubuntu1~20.04) 9.3.0, Python 3.8.5, ROOT 6.22/07
 * CentOS 7, g++ (GCC) 8.3.1, Python 3.6.8, ROOT 6.20/04   
 * Fedora 18, g++ (GCC) 4.7.2, Python 2.7.3, ROOT 5.34/36
-* Ubuntu 12.04.5 LTS, g++ (Ubuntu/Linaro 4.6.3-1ubuntu5) 4.6.3, Python 2.7.3, ROOT 5.34/14
+* Ubuntu 12.04.5 LTS, g++ (Ubuntu/Linaro 4.6.3-1ubuntu5) 4.6.3, Python 2.7.3, ROOT 5.34/14 
 
 ## For Developers:
 ### Python:
@@ -81,7 +83,11 @@ from specfit_cpplib import TCRFlux, TCRFluxFit, TSPECFITF1, TBPLF1, specfit_uti,
 #include "specfit_uti.h"
 #include "specfit_canv.h"
 ```
-See 
+Run
+```bash
+make htmldoc
+```
+then see 
 ```bash
 $SPECFIT/htmldoc/index.html 
 ```
