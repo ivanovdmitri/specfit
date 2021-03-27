@@ -11,6 +11,7 @@
 #include "TF1.h"
 #include "TGraph.h"
 #include "TGraphAsymmErrors.h"
+#include "TObjArray.h"
 #include "TGraphErrors.h"
 
 // class that describes all the information + manipulation
@@ -22,7 +23,7 @@ public:
   TCRFlux() :
       log10en_min_data(0), log10en_max_data(0), nevents_min_restricted(7), fJ(0), fE3J(0), fJ_null(0), fE3J_null(0), fEnCorr(0)
   {
-    ;
+    init_graph_pointers();
   }
 
   TCRFlux(const char *name, const char *title = "Flux");
@@ -48,6 +49,8 @@ public:
       const std::vector<Double_t> &log10en_bsize_values,    // log10(E/eV) bin sizes
       const std::vector<Double_t> &nevents_values,          // numbers of events in each energy bin
       const std::vector<Double_t> &exposure_values);        // exposure [m^2 sr s] for each energy bin center value
+
+  void resize(Int_t nebins);                                // to resize the arrays to a given number of energy bins
 
   // determine the energy range of the spectrum measurement
   void find_min_max_log10en();
@@ -100,29 +103,34 @@ public:
     return log_likelihood;
   }
 
-  const std::pair<Double_t, Double_t>& GetLogLikelihood()
+  const std::pair<Double_t, Double_t>& GetLogLikelihood() const
   {
     return log_likelihood;
   }
-  const std::pair<Double_t, Double_t>& GetLogLikelihoodNonzero()
+  const std::pair<Double_t, Double_t>& GetLogLikelihoodNonzero() const
   {
     return log_likelihood_nonzero;
   }
-  const std::pair<Double_t, Double_t>& GetLogLikelihoodRestricted()
+  const std::pair<Double_t, Double_t>& GetLogLikelihoodRestricted() const
   {
     return log_likelihood_restricted;
   }
 
   // graphs for the Flux, E^3 x Flux, numbers of events, fit prediction numbers of events, and the numbers
   // for the null hypothesis.
-  TGraphAsymmErrors* GetJ();
-  TGraphErrors *GetJ_simple_errors();
-  TGraphAsymmErrors* GetE3J();
-  TGraphErrors *GetE3J_simple_errors();
-  TGraphAsymmErrors* GetNevents();
-  TGraphErrors *GetNevents_simple_errors();
-  TGraph* GetNeventsFit();
-  TGraph* GetNeventsNull();
+  TGraphAsymmErrors* GetJ() const;
+  TGraphErrors *GetJ_simple_errors() const;
+  TGraphAsymmErrors* GetE3J() const;
+  TGraphErrors *GetE3J_simple_errors() const;
+  TGraphAsymmErrors* GetNevents() const;
+  TGraph *GetExposure() const;
+  TGraphErrors *GetNevents_simple_errors() const;
+  TGraph* GetNeventsFit() const ;
+  TGraph* GetNeventsNull() const;
+
+
+  // Divide this flux by another flux described by another TCRFlux object and return the result as TGraphErrors
+  TGraphErrors* FluxRatio_Energy_Bins(const TCRFlux *other, Bool_t ok_to_extrapolate = false) const;
 
   // plotting functions
   void Plot(const char *what = "e3j", const char *draw_opt = "a,e1p");
@@ -135,6 +143,9 @@ public:
   // by some constant factor. Sometimes
   // useful for displaying purposes.
   void RescaleExposure(Double_t c = 1.0);
+
+  // return the total number of events
+  Double_t nEventsTotal();
 
   Double_t log10en_min_data;            // minimum energy available from the loaded data
   Double_t log10en_max_data;            // maximum energy available from the loaded data
@@ -166,6 +177,41 @@ public:
   // the arguments to this function are assumed to be
   // function of log10(E/eV)
   TF1 *fEnCorr;
+
+  void SetLineColor(Color_t lcol = 1);
+  void SetLineStyle(Style_t lstyle = 1);
+  void SetLineWidth(Size_t lwidth = 1);
+  void SetMarkerColor(Color_t mcol = 1);
+  void SetMarkerStyle(Style_t mstyle = 1);
+  void SetMarkerSize(Size_t msize = 1);
+
+  inline void SetColor(Color_t col = 1)
+  {
+    SetLineColor(col);
+    SetMarkerColor(col);
+  }
+
+
+private:
+  TGraphAsymmErrors* _gJ;
+  TGraphAsymmErrors* _gE3J;
+  TGraphAsymmErrors* _gNevents;
+  TGraph *_gExposure;
+  TGraph* _gNeventsFit;
+  TGraph* _gNeventsNull;
+  TObjArray allocated_graphs;
+  void init_graph_pointers()
+  {
+    _gJ = 0;
+    _gE3J = 0;
+    _gNevents = 0;
+    _gExposure = 0;
+    _gNeventsFit = 0;
+    _gNeventsNull = 0;
+  }
+  void clean_graph_if_allocated(TObject*& graph_obj);
+  void clean_allocated_graphs();
+
 
   // for the class dictionary generation
 ClassDef(TCRFlux,1)

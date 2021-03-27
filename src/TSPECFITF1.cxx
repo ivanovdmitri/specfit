@@ -7,6 +7,34 @@ TSPECFITF1::~TSPECFITF1()
   ;
 }
 
+
+void TSPECFITF1::SetParLimitsCS(const char *cpsparlimits)
+{
+  std::vector<std::pair<Double_t, Double_t> > pairs = TSPECFITF1::parse_cs_doubles_pairs(cpsparlimits);
+  if((Int_t)pairs.size() != GetNpar())
+    {
+      fprintf(stderr,"error: number of parsed limit pairs %d found in '%s' is not the same as the number of function parameters %d!\n",
+	  (Int_t)pairs.size(),cpsparlimits,GetNpar());
+      return;
+    }
+  for (Int_t ipar = 0; ipar < GetNpar(); ipar++)
+      SetParLimits(ipar, pairs[ipar].first, pairs[ipar].second);
+}
+
+TString TSPECFITF1::GetParLimitsCS() const
+{
+  TString result = "";
+  for (Int_t ipar = 0; ipar < GetNpar(); ipar++)
+    {
+	Double_t parmin = 0, parmax = 0;
+	GetParLimits(ipar, parmin, parmax);
+	if(result.Length())
+	  result += ",";
+	result += TString::Format("(%.9e,%.9e)", parmin, parmax);
+    }
+  return result;
+}
+
 TString TSPECFITF1::cs_doubles(Int_t n, const Double_t *data)
 {
   TString result = "";
@@ -32,6 +60,45 @@ TString TSPECFITF1::cs_strings(Int_t n, const TString *data)
 }
 
 // parse comma-separated array of doubles into a vector of doubles
+std::vector<std::pair<Double_t,Double_t> > TSPECFITF1::parse_cs_doubles_pairs(const char *cs_doubles_pairs)
+{
+  std::vector<std::pair<Double_t,Double_t> > result;
+  if(!cs_doubles_pairs)
+    return result;
+  Ssiz_t from = 0;
+  TString tok = "";
+  TString s_cs_doubles_pairs = cs_doubles_pairs;
+  s_cs_doubles_pairs.ReplaceAll(" ", "");
+  while (s_cs_doubles_pairs.Tokenize(tok, from, "),"))
+    {
+      if (tok.Length() < 3)
+	{
+	  fprintf(stderr,"error: TSPECFITF1::parse_cs_doubles_pairs: failed to parse %s\n", cs_doubles_pairs);
+	  result.clear();
+	  return result;
+	}
+
+      if(tok[tok.Length() - 1] == ',')
+	tok.Remove(tok.Length() - 1);
+      if(tok[0] == '(')
+	tok.Remove(0, 1);
+      if(tok[tok.Length() - 1] == ')')
+	tok.Remove(tok.Length() - 1);
+
+      std::vector<Double_t> vp = parse_cs_doubles(tok.Data());
+      if (vp.size() != 2)
+       	{
+       	  fprintf(stderr,"error: TSPECFITF1::parse_cs_doubles_pairs: failed to parse %s\n", cs_doubles_pairs);
+       	  result.clear();
+       	  return result;
+       	}
+      std::pair<Double_t,Double_t> p = std::make_pair(vp[0],vp[1]);
+      result.push_back(p);
+    }
+  return result;
+}
+
+// parse comma-separated array of doubles into a vector of doubles
 std::vector<Double_t> TSPECFITF1::parse_cs_doubles(const char *cs_doubles)
 {
   std::vector<Double_t> result;
@@ -40,8 +107,12 @@ std::vector<Double_t> TSPECFITF1::parse_cs_doubles(const char *cs_doubles)
   Ssiz_t from = 0;
   TString tok = "";
   TString s_cs_doubles = cs_doubles;
+  s_cs_doubles.ReplaceAll(" ", "");
   while (s_cs_doubles.Tokenize(tok, from, ","))
-    result.push_back(tok.Atof());
+    {
+      if(tok.IsFloat())
+	result.push_back(tok.Atof());
+    }
   return result;
 }
 
@@ -54,8 +125,12 @@ std::vector<TString> TSPECFITF1::parse_cs_strings(const char *cs_strings)
   Ssiz_t from = 0;
   TString tok = "";
   TString s_cs_strings = cs_strings;
+  s_cs_strings.ReplaceAll(" ", "");
   while (s_cs_strings.Tokenize(tok, from, ","))
-    result.push_back(tok);
+    {
+      if(!tok.IsWhitespace())
+	result.push_back(tok);
+    }
   return result;
 }
 
@@ -121,16 +196,17 @@ void TSPECFITF1::SetParErrorsCS(const char *csparerrors)
     }
 }
 
-void TSPECFITF1::GetParNames(TString *parnames)
+void TSPECFITF1::GetParNames(TString *parnames) const
 {
   for (Int_t i = 0; i < GetNpar(); i++)
     parnames[i] = GetParName(i);
 }
-const TString* TSPECFITF1::GetParNames()
+
+ std::vector<TString> TSPECFITF1::GetParNames() const
 {
-  _parnames_data_ = std::vector<TString>(GetNpar());
-  GetParNames(&_parnames_data_[0]);
-  return &_parnames_data_[0];
+  std::vector<TString> parnames = std::vector<TString>(GetNpar());
+  GetParNames(&parnames[0]);
+  return parnames;
 }
 
 TSPECFITF1* TSPECFITF1::Add(const char *newname, const char *frm_start, const TF1 *f1, const TF1 *f2, Double_t c1, Double_t c2)
@@ -198,4 +274,52 @@ TString TSPECFITF1::GetExpFormula(const TF1 *f, Int_t n_offset)
       frm.ReplaceAll(intno_param, intno_param_plus_offset); // apply offset, if requested
     }
   return frm;
+}
+
+
+TSPECFITF1* TSPECFITF1::Multiply(const char *newname, const TF1 *f1, const TF1 *f2)
+{
+  TString frm_1 = GetExpFormula(f1, 0);
+  TString frm_2 = GetExpFormula(f2, f1->GetNpar());
+  TString frm = TString::Format("(%s) * (%s)", frm_1.Data(), frm_2.Data());
+  std::vector<TString> parnames;
+  std::vector<Double_t> params;
+  std::vector<Double_t> parerrors;
+  // put in whatever values were stored in f1, f2
+  for (Int_t i = 0; i < f1->GetNpar(); i++)
+    {
+      parnames.push_back(f1->GetParName(i));
+      params.push_back(f1->GetParameter(i));
+      parerrors.push_back(f1->GetParError(i));
+    }
+  for (Int_t i = 0; i < f2->GetNpar(); i++)
+    {
+      parnames.push_back(f2->GetParName(i));
+      params.push_back(f2->GetParameter(i));
+      parerrors.push_back(f2->GetParError(i));
+    }
+  // domain of the function is determined by f1, f2
+  Double_t xmin = TMath::Min(f1->GetXmin(), f2->GetXmin());
+  Double_t xmax = TMath::Max(f1->GetXmax(), f2->GetXmax());
+  TSPECFITF1 *f = new TSPECFITF1(newname, frm.Data(), xmin, xmax, &parnames[0], &params[0], &parerrors[0]);
+  return f;
+}
+
+void TSPECFITF1::Scale(Double_t c)
+{
+  std::vector<TString>  parnames = GetParNames();
+  std::vector<Double_t> parameters(GetParameters(), GetParameters() + GetNpar());
+  std::vector<Double_t> parerrors(GetParErrors(), GetParErrors() + GetNpar());
+  TString frm_0 = GetExpFormula(this, 0);
+  TString frm = TString::Format("%e * (%s)", c, frm_0.Data());
+#if ROOT_VERSION_CODE >= ROOT_VERSION(6,0,0)
+  GetFormula()->SetTitle(frm); // In ROOT6 and above TFormula is embedded
+  GetFormula()->Compile(frm);
+#else
+  SetTitle(frm); // Before ROOT6, TF1 inherited from TFormula
+  Compile(frm);
+#endif
+  SetParNames(&parnames.front());
+  SetParameters(&parameters.front());
+  SetParErrors(&parerrors.front());
 }

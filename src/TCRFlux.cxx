@@ -18,10 +18,12 @@ TCRFlux::TCRFlux(const char *name, const char *title) :
   SetName(name);
   SetTitle(title);
   gROOT->GetListOfSpecials()->Add(this); // add the object to the list of ROOT's specials
+  init_graph_pointers(); // initialize pointers to graphs
 }
 
 TCRFlux::~TCRFlux()
 {
+  clean_allocated_graphs();
   gROOT->GetListOfSpecials()->Remove(this);
 }
 
@@ -82,6 +84,15 @@ Bool_t TCRFlux::Load(const std::vector<Double_t> &log10en_values,  // energies l
   nevents_fit = std::vector<Double_t>(nevents.size(), 0);
   find_min_max_log10en();
   return true;
+}
+
+void TCRFlux::resize(Int_t nbins)
+{
+  log10en.resize(nbins);
+  log10en_bsize.resize(nbins);
+  nevents.resize(nbins);
+  exposure.resize(nbins);
+  nevents_fit.resize(nbins);
 }
 
 // determine the energy range of the spectrum measurement
@@ -211,7 +222,7 @@ std::pair<Double_t, Double_t> TCRFlux::EvalNull()
   return nexpect_nobserve;
 }
 
-TGraphAsymmErrors* TCRFlux::GetJ()
+TGraphAsymmErrors* TCRFlux::GetJ() const
 {
   TGraphAsymmErrors *g = new TGraphAsymmErrors(nevents.size());
   g->SetName(specfit_uti::get_unique_object_name(TString("g") + TString(GetName()) + "_J"));
@@ -259,7 +270,7 @@ TGraphAsymmErrors* TCRFlux::GetJ()
   return g;
 }
 
-TGraphErrors* TCRFlux::GetJ_simple_errors()
+TGraphErrors* TCRFlux::GetJ_simple_errors() const
 {
   TGraphErrors *g = new TGraphErrors(nevents.size());
   g->SetName(specfit_uti::get_unique_object_name(TString("g") + TString(GetName()) + "_J"));
@@ -306,7 +317,7 @@ TGraphErrors* TCRFlux::GetJ_simple_errors()
   return g;
 }
 
-TGraphAsymmErrors* TCRFlux::GetE3J()
+TGraphAsymmErrors* TCRFlux::GetE3J() const
 {
   TGraphAsymmErrors *g = new TGraphAsymmErrors(nevents.size());
   g->SetName(specfit_uti::get_unique_object_name(TString("g") + TString(GetName()) + "_E3J"));
@@ -355,7 +366,7 @@ TGraphAsymmErrors* TCRFlux::GetE3J()
   return g;
 }
 
-TGraphErrors* TCRFlux::GetE3J_simple_errors()
+TGraphErrors* TCRFlux::GetE3J_simple_errors() const
 {
   TGraphErrors *g = new TGraphErrors(nevents.size());
   g->SetName(specfit_uti::get_unique_object_name(TString("g") + TString(GetName()) + "_E3J"));
@@ -404,7 +415,7 @@ TGraphErrors* TCRFlux::GetE3J_simple_errors()
 }
 
 
-TGraphAsymmErrors* TCRFlux::GetNevents()
+TGraphAsymmErrors* TCRFlux::GetNevents() const
 {
   TGraphAsymmErrors *g = new TGraphAsymmErrors(nevents.size());
   g->SetName(specfit_uti::get_unique_object_name(TString("g") + TString(GetName()) + "_N"));
@@ -432,7 +443,7 @@ TGraphAsymmErrors* TCRFlux::GetNevents()
   return g;
 }
 
-TGraphErrors* TCRFlux::GetNevents_simple_errors()
+TGraphErrors* TCRFlux::GetNevents_simple_errors() const
 {
   TGraphErrors *g = new TGraphErrors(nevents.size());
   g->SetName(specfit_uti::get_unique_object_name(TString("g") + TString(GetName()) + "_N"));
@@ -459,7 +470,32 @@ TGraphErrors* TCRFlux::GetNevents_simple_errors()
   return g;
 }
 
-TGraph* TCRFlux::GetNeventsFit()
+TGraph* TCRFlux::GetExposure() const
+{
+  TGraph *g = new TGraphErrors(exposure.size());
+  g->SetName(specfit_uti::get_unique_object_name(TString("g") + TString(GetName()) + "_exposure"));
+  g->SetTitle(TString::Format("%s;log_{10}(E/eV);Exposure", GetTitle()));
+  g->GetXaxis()->SetTitleSize(0.055);
+  g->GetYaxis()->SetTitleSize(0.055);
+  g->SetMarkerStyle(20);
+  Double_t ylow = 1e256, yhigh = -1;
+  for (Int_t i = 0; i < (Int_t) exposure.size(); i++)
+    {
+      Double_t encorr = (fEnCorr ? fEnCorr->Eval(log10en[i]) : 1.0);
+      g->SetPoint(i, log10en[i] + TMath::Log10(encorr), exposure[i]);
+      if(exposure[i] > 1e-30)
+	{
+	  if(0.9 * exposure[i] < ylow)
+	    ylow = 0.9 * exposure[i];
+	  if(1.1 * exposure[i] > yhigh)
+	    yhigh = 1.1 * exposure[i];
+	}
+    }
+  g->GetYaxis()->SetRangeUser(ylow, yhigh);
+  return g;
+}
+
+TGraph* TCRFlux::GetNeventsFit() const
 {
   TGraph *g = new TGraph(nevents_fit.size());
   g->SetName(specfit_uti::get_unique_object_name(TString("g") + TString(GetName()) + "_N_fit"));
@@ -480,7 +516,7 @@ TGraph* TCRFlux::GetNeventsFit()
   return g;
 }
 
-TGraph* TCRFlux::GetNeventsNull()
+TGraph* TCRFlux::GetNeventsNull() const
 {
   TGraph *g = new TGraph(bins_null.size());
   g->SetName(specfit_uti::get_unique_object_name(TString("g") + TString(GetName()) + "_N_null"));
@@ -501,13 +537,56 @@ TGraph* TCRFlux::GetNeventsNull()
   return g;
 }
 
+
+// Divide this flux by another flux described by TCRFlux object and return the result as TGraphErrors
+TGraphErrors* TCRFlux::FluxRatio_Energy_Bins(const TCRFlux* other, Bool_t ok_to_extrapolate) const
+{
+  if(log10en.empty())
+    {
+      fprintf(stderr,"warning: this instance is empty %s, can't form ratio with %s!\n", GetName(), other->GetName());
+      return 0;
+    }
+
+
+  Int_t llim = (Int_t)log10en.size() - 1;
+  Int_t ulim = 0;
+
+  // find upper and lower limits where numbers of events are not zero
+  for (Int_t i = 0; i < (Int_t)log10en.size(); i++)
+    {
+      if(nevents[(Int_t)log10en.size()-i-1])
+	llim = (Int_t)log10en.size()-i-1;
+      if(nevents[i])
+	ulim = i;
+    }
+
+  Int_t nebins = ulim - llim;
+  if(nebins <= 0)
+    {
+      fprintf(stderr, "warning: no nonzero bins in %s, can't form ratio with %s!\n", GetName(), other->GetName());
+      return 0;
+    }
+  Double_t log10en_lo = log10en[llim]-log10en_bsize[llim]/2.0;
+  Double_t log10en_up = log10en[ulim]+log10en_bsize[ulim]/2.0;
+
+  TGraphErrors *g1 = GetJ_simple_errors();
+  TGraphErrors *g2 = other->GetJ_simple_errors();
+  TGraphErrors* g = specfit_uti::FluxRatio_Energy_Bins(g1,g2,nebins,log10en_lo,log10en_up,ok_to_extrapolate);
+  delete g1;
+  delete g2;
+  return g;
+}
+
 void TCRFlux::Plot(const char *what, const char *draw_opt)
 {
   TString s_what(what);
   s_what.ToLower();
   if(s_what == "e3j")
     {
-      GetE3J()->Draw(draw_opt);
+      clean_graph_if_allocated((TObject*&)_gE3J);
+      _gE3J = GetE3J();
+      allocated_graphs.Add(_gE3J);
+      _gE3J->Draw(draw_opt);
       if(fE3J)
 	fE3J->Draw("same");
       if(fE3J_null)
@@ -515,7 +594,10 @@ void TCRFlux::Plot(const char *what, const char *draw_opt)
     }
   else if(s_what == "" || s_what == "j")
     {
-      GetJ()->Draw(draw_opt);
+      clean_graph_if_allocated((TObject*&)_gJ);
+      _gJ = GetJ();
+      allocated_graphs.Add(_gJ);
+      _gJ->Draw(draw_opt);
       if(fJ)
 	fJ->Draw("same");
       if(fJ_null)
@@ -523,12 +605,33 @@ void TCRFlux::Plot(const char *what, const char *draw_opt)
     }
   else if(s_what == "n" || s_what == "nevent" || s_what == "nevents")
     {
-      if(nevents.size())
-	GetNevents()->Draw(draw_opt);
-      if(nevents_fit.size())
-	GetNeventsFit()->Draw("L,same");
-      if(nevents_null.size())
-	GetNeventsNull()->Draw("L,same");
+      if(!nevents.empty())
+	{
+	  clean_graph_if_allocated((TObject*&)_gNevents);
+	  _gNevents = GetNevents();
+	  _gNevents->Draw(draw_opt);
+	}
+      if(!nevents_fit.empty())
+	{
+	  clean_graph_if_allocated((TObject*&)_gNeventsFit);
+	  _gNeventsFit = GetNeventsFit();
+	  _gNeventsFit->Draw("L,same");
+	}
+      if(!nevents_null.empty())
+	{
+	  clean_graph_if_allocated((TObject*&)_gNeventsNull);
+	  _gNeventsNull = GetNeventsNull();
+	  _gNeventsNull->Draw("L,same");
+	}
+    }
+  else if(s_what == "exposure")
+    {
+      if(!exposure.empty())
+	{
+	  clean_graph_if_allocated((TObject*&)_gExposure);
+	  _gExposure = GetNeventsNull();
+	  _gExposure->Draw(draw_opt);
+	}
     }
   else
     {
@@ -548,20 +651,24 @@ void TCRFlux::Draw(Option_t *opt)
     what = "j";
   else if(!s_opt.Contains("j") && (s_opt.Contains("n") || s_opt.Contains("nevent")))
     what = "n";
+  else if(!s_opt.Contains("j") && !s_opt.Contains("n") && !s_opt.Contains("exposure"))
+    what = "exposure";
   else
     {
-      fprintf(stderr, "option string must include \"e3j\", or \"j\", or \"n\" in it\n");
+      fprintf(stderr, "option string must include \"e3j\", or \"j\", or \"n\" or \"exposure\" in it\n");
       return;
     }
   TString draw_opt = s_opt;
   while (draw_opt.Contains("e3j"))
     draw_opt.Remove(draw_opt.First("e3j"), TString("e3j").Length());
-  while (draw_opt.Contains("e3j"))
-    draw_opt.Remove(draw_opt.First("e3j"), TString("e3j").Length());
+  while (draw_opt.Contains("j"))
+    draw_opt.Remove(draw_opt.First("j"), TString("j").Length());
   while (draw_opt.Contains("nevent"))
     draw_opt.Remove(draw_opt.First("nevent"), TString("nevent").Length());
   while (draw_opt.Contains("n"))
     draw_opt.Remove(draw_opt.First("n"), TString("n").Length());
+  while (draw_opt.Contains("exposure"))
+    draw_opt.Remove(draw_opt.First("exposure"), TString("exposure").Length());
   while (draw_opt.BeginsWith(","))
     draw_opt.Remove(0, 1);
   Plot(what, draw_opt);
@@ -574,6 +681,15 @@ void TCRFlux::RescaleExposure(Double_t c)
   // useful for displaying purposes.
   for (std::vector<Double_t>::iterator it = exposure.begin(); it != exposure.end(); it++)
     (*it) *= c;
+}
+
+
+Double_t TCRFlux::nEventsTotal()
+{
+  Double_t ntotal = 0.0;
+  for (std::vector<Double_t>::iterator itr = nevents.begin(); itr != nevents.end(); itr++)
+    ntotal += (*itr);
+  return ntotal;
 }
 
 void TCRFlux::to_ascii_file(const char* ascii_file_name)
@@ -603,3 +719,84 @@ void TCRFlux::to_ascii_file(const char* ascii_file_name)
   fclose(fp);
 }
 
+
+void TCRFlux::SetLineColor(Color_t lcol)
+{
+  TObject *obj = 0;
+  for (TIterator *itr = allocated_graphs.MakeIterator(); (obj = itr->Next());)
+    {
+      if(obj->InheritsFrom("TGraph"))
+	((TGraph*) obj)->SetLineColor(lcol);
+    }
+}
+
+void TCRFlux::SetLineStyle(Style_t lstyle)
+{
+  TObject *obj = 0;
+  for (TIterator *itr = allocated_graphs.MakeIterator(); (obj = itr->Next());)
+    {
+      if(obj->InheritsFrom("TGraph"))
+	((TGraph*) obj)->SetLineStyle(lstyle);
+    }
+}
+
+void TCRFlux::SetLineWidth(Size_t lwidth)
+{
+  TObject *obj = 0;
+  for (TIterator *itr = allocated_graphs.MakeIterator(); (obj = itr->Next());)
+    {
+      if(obj->InheritsFrom("TGraph"))
+	((TGraph*) obj)->SetLineWidth(lwidth);
+    }
+}
+
+void TCRFlux::SetMarkerColor(Color_t mcol)
+{
+  TObject *obj = 0;
+  for (TIterator *itr = allocated_graphs.MakeIterator(); (obj = itr->Next());)
+    {
+      if(obj->InheritsFrom("TGraph"))
+	((TGraph*) obj)->SetMarkerColor(mcol);
+    }
+}
+void TCRFlux::SetMarkerStyle(Style_t mstyle)
+{
+  TObject *obj = 0;
+  for (TIterator *itr = allocated_graphs.MakeIterator(); (obj = itr->Next());)
+    {
+      if(obj->InheritsFrom("TGraph"))
+	((TGraph*) obj)->SetMarkerStyle(mstyle);
+    }
+}
+void TCRFlux::SetMarkerSize(Size_t msize)
+{
+  TObject *obj = 0;
+  for (TIterator *itr = allocated_graphs.MakeIterator(); (obj = itr->Next());)
+    {
+      if(obj->InheritsFrom("TGraph"))
+	((TGraph*) obj)->SetMarkerSize(msize);
+    }
+}
+
+void TCRFlux::clean_graph_if_allocated(TObject*& graph_obj)
+{
+  if(!graph_obj)
+    return;
+  if(allocated_graphs.FindObject(graph_obj))
+    {
+      allocated_graphs.Remove(graph_obj);
+      delete graph_obj;
+      graph_obj = 0;
+    }
+}
+
+void TCRFlux::clean_allocated_graphs()
+{
+  if(allocated_graphs.GetEntries())
+    {
+      TIterator *itr = allocated_graphs.MakeIterator();
+      for (TObject *obj = 0; (obj = itr->Next()); delete obj)
+	;
+    }
+  allocated_graphs.Clear();
+}

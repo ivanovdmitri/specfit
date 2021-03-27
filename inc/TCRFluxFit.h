@@ -109,8 +109,8 @@ public:
     return log_likelihood;
   }
 
-  // Performs the fit, returns true if successfull.
-  Bool_t Fit();
+  // Performs the fit, returns true if successful.
+  Bool_t Fit(Bool_t verbose = true);
 
   // To obtain the Minuit pointer for whatever reason.
   // In order for it to behave correctly, the global FCN must be
@@ -129,6 +129,42 @@ public:
   std::pair<Double_t, Double_t> log_likelihood;
   std::pair<Double_t, Double_t> log_likelihood_nonzero;
   std::pair<Double_t, Double_t> log_likelihood_restricted;
+
+  std::vector<Double_t> fit_parameters; // combined fit parameters
+  std::vector<Double_t> fit_parerrors;  // uncertainties on combined fit parameters
+
+
+  Double_t GetParameter(Int_t ipar) const
+  {
+    return ipar >=0 && ipar < (Int_t) fit_parameters.size() ? fit_parameters[ipar] : 0.0;
+  }
+
+  Double_t GetParError(Int_t ipar) const
+  {
+    return ipar >=0 && ipar < (Int_t) fit_parerrors.size() ? fit_parerrors[ipar] : 0.0;
+  }
+
+  Double_t GetChisquare() const
+  {
+    return log_likelihood.first;
+  }
+
+  Double_t GetNDF() const
+  {
+    return log_likelihood.second;
+  }
+
+  Int_t GetNpar() const
+  {
+    return (Int_t)fit_parameters.size();
+  }
+
+  // ipar is the parameter index
+  // npts, par_lo, par_up are the number of points to consider and upper and lower limits.
+  // Default values will lead to using Minuit's default settings
+  // calc_deltas will calculate the offsets for the parameter from its best fitted value and
+  // chi2 (normalized log likelihood) from its smallest value
+  TGraph* scan_parameter(Int_t ipar, Int_t npts = 40, Double_t par_lo = 0, Double_t par_up = 0, Bool_t calc_deltas = true);
 
   // flux function to use
   TF1 *fJ;        // for fitting

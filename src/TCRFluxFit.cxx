@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include "TTree.h"
-
+#include "TAxis.h"
 
 ClassImp(TCRFluxFit);
 
@@ -123,7 +123,7 @@ Bool_t TCRFluxFit::Add(const char *name, const char *title, const char *ascii_fi
       return false;
     }
   t->Draw("log10en:log10en_bsize:nevents:exposure", "", "goff");
-  if(!Add(name, title, t->GetSelectedRows(), t->GetV1(), t->GetV2(), t->GetV3(), t->GetV4(), fEnCorr_set))
+  if(!Add(name, title, (int)t->GetSelectedRows(), t->GetV1(), t->GetV2(), t->GetV3(), t->GetV4(), fEnCorr_set)) // @suppress("Invalid arguments")
     {
       delete t;
       return false;
@@ -262,7 +262,7 @@ static void fcn_for_mFIT(Int_t &npar, Double_t *gin, Double_t &f, Double_t *par,
     }
 }
 
-Bool_t TCRFluxFit::Fit()
+Bool_t TCRFluxFit::Fit(Bool_t verbose)
 {
   if(!Fluxes.size())
     {
@@ -288,6 +288,9 @@ Bool_t TCRFluxFit::Fit()
   if(mFIT)
     delete mFIT;
   mFIT = new TMinuit(nfitpar);
+
+  if(!verbose)
+    mFIT->SetPrintLevel(-1);
 
   // declare the parameters
   for (Int_t i = 0; i < nfluxpar; i++)
@@ -315,15 +318,16 @@ Bool_t TCRFluxFit::Fit()
   mFIT->Migrad();
 
   // Get the best fit parameters
-  std::vector<Double_t> params(nfitpar, 0), parerrors(nfitpar, 0);
+  fit_parameters.resize(nfitpar);
+  fit_parerrors.resize(nfitpar);
   for (Int_t i = 0; i < nfitpar; i++)
-    mFIT->GetParameter(i, params[i], parerrors[i]);
+    mFIT->GetParameter(i, fit_parameters[i], fit_parerrors[i]);
 
   // set the best fit parameters to the corresponding functions
-  SetFluxPar(&params[0], &parerrors[0]); // flux fit function
+  SetFluxPar(&fit_parameters[0], &fit_parerrors[0]); // flux fit function
   // energy correction function, if correction parameters are fitted
   if(nencorrpar)
-    SetEncorrPar(&params[nfluxpar], &parerrors[nfluxpar]);
+    SetEncorrPar(&fit_parameters[nfluxpar], &fit_parerrors[nfluxpar]);
 
   // calculate the overall log likelihood again, using the best fit parameters
   CalcLogLikelihood();
@@ -346,3 +350,47 @@ TMinuit* TCRFluxFit::GetMinuit()
   return mFIT;
 }
 
+TGraph* TCRFluxFit::scan_parameter(Int_t ipar, Int_t npts, Double_t par_lo, Double_t par_up, Bool_t calc_deltas)
+{
+  TMinuit *m = GetMinuit();
+  if(!m)
+    {
+      fprintf(stderr, "error: no initialized Minuit instance -- do the fit first!\n");
+      return (new TGraph(0));
+    }
+  if(ipar < 0 || ipar > m->GetNumPars() - 1)
+    {
+      fprintf(stderr, "error: ipar must be in 0 to %d range\n", m->GetNumPars() - 1);
+      return (new TGraph(0));
+    }
+  TString chnam = "";
+  Double_t val = 0, err = 0, xlolim = 0, xuplim = 0;
+  Int_t iuint = 0;
+  m->mnpout(ipar, chnam, val, err, xlolim, xuplim, iuint);
+  m->Command(TMath::Abs(par_lo - par_up) < 1e-6 * err ? TString::Format("scan %d %d", ipar + 1, npts) : TString::Format("scan %d %d %f %f", ipar + 1, npts, par_lo, par_up));
+  TGraph *g = (TGraph*) m->GetPlot();
+  if(!g)
+    {
+      fprintf(stderr, "failed to calculate scan curve for ipar %d (%s)\n", ipar, chnam.Data());
+      return (new TGraph(0));
+    }
+  if(calc_deltas)
+    {
+      for (Int_t i = 0; i < g->GetN(); i++)
+	{
+	  Double_t x = 0, y = 0;
+	  g->GetPoint(i, x, y);
+	  x -= val;
+	  y -= m->fAmin;
+	  g->SetPoint(i, x, y);
+	}
+      g->SetTitle(TString::Format(";#Delta [%s];#Delta [-2 ln #lambda]", chnam.Data()));
+    }
+  else
+    g->SetTitle(TString::Format(";%s;-2 ln #lambda", chnam.Data()));
+  g->GetXaxis()->SetTitleSize(0.055);
+  g->GetYaxis()->SetTitleSize(0.055);
+  g->GetXaxis()->CenterTitle();
+  g->GetYaxis()->CenterTitle();
+  return (TGraph*) g->Clone(TString::Format("gScan_%s", chnam.Data()));
+}

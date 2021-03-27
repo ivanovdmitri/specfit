@@ -17,7 +17,7 @@ set(CMAKE_VERBOSE_MAKEFILE on)
 ### where to put the include files
 set(INCLUDE_OUTPUT_PATH "${CMAKE_BINARY_DIR}/inc")
 
-### to pu the source files (needed for HTML doc)
+### to put the source files (needed for HTML doc)
 set(SOURCE_OUTPUT_PATH "${CMAKE_BINARY_DIR}/src")
 
 ### where to put the libraries
@@ -48,7 +48,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra")
 include_directories(${INCLUDE_OUTPUT_PATH})
 
 
-# install C++ header files, LinkDef file is treated sperately
+# install C++ header files, LinkDef file is treated separately
 # because it's only needed for the ROOT dictionary generation
 file(GLOB SPECFIT_HEADERS inc/*.h)
 list(FILTER SPECFIT_HEADERS EXCLUDE REGEX ".*LinkDef.h$")
@@ -93,7 +93,8 @@ target_link_libraries(specfit ${ROOT_LIBRARIES} -L${ROOT_LIBRARY_DIR} -lMinuit)
 # Python library files
 set(PYFILES
   encorr_functions.py
-  flux_functions.py
+  flux_functions.py  
+  cr_flux_data.py  
   specfit_cpplib.py
   )
 file(INSTALL ${PYFILES} DESTINATION ${CMAKE_BINARY_DIR})

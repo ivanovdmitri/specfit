@@ -13,6 +13,8 @@
 
 // Collection of routines for manipulating canvases
 TObjArray specfit_canv::AllCanvases;
+
+Int_t specfit_canv::_arrangement_factor_ = 8;
   
 Int_t specfit_canv::count_subpads(TVirtualPad *pad)
 {
@@ -290,7 +292,7 @@ void specfit_canv::adjust_margins(Double_t left_margin,
       adjust_margins(canv, left_margin, bottom_margin, right_margin,top_margin);
     }
 }
-  
+
 void specfit_canv::arrange_canvases(Int_t arrangement_factor)
 {
 
@@ -299,6 +301,15 @@ void specfit_canv::arrange_canvases(Int_t arrangement_factor)
       fprintf(stderr,"maximum arrangement factor is 8\n");
       arrangement_factor = 8;
     }
+
+  if(arrangement_factor < 1)
+    {
+      fprintf(stderr,"minimum arrangement factor is 1\n");
+      arrangement_factor = 1;
+    }
+
+  _arrangement_factor_ = arrangement_factor;
+  
 
   // make windows smaller
   zoom_out();
@@ -328,6 +339,10 @@ void specfit_canv::arrange_canvases(Int_t arrangement_factor)
     }
 }
 
+void specfit_canv::arrange_canvases()
+{
+  arrange_canvases(_arrangement_factor_);
+}
 
 void specfit_canv::Iconify(TCanvas *canv)
 {
@@ -410,7 +425,8 @@ void specfit_canv::save_plot(TCanvas *canv,
   save_canvas(canv,fname,xysize);
   arrange_canvases();
 }
-  
+
+
 void specfit_canv::init_canvases(Int_t ncanvases, Int_t arrangement_factor, Bool_t tick, Bool_t grid)
 {
 

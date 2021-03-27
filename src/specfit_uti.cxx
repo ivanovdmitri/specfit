@@ -5,6 +5,7 @@
 #include <vector>
 #include "specfit_uti.h"
 #include "TF1.h"
+#include "TAxis.h"
 #include "TGraph.h"
 #include "TROOT.h"
 #include "TFeldmanCousins.h"
@@ -28,7 +29,7 @@ TString specfit_uti::get_unique_object_name(const char *basename)
     {
       TString name = (TString(basename) + "_") + TString::Format("%zu", i);
       // skip if already present
-      if(gROOT->FindObject(name))
+      if(gROOT->FindObject(name)) // @suppress("Function cannot be resolved") // @suppress("Method cannot be resolved")
 	continue;
       return name;
     }
@@ -157,6 +158,242 @@ TF1* specfit_uti::get_e3j_from_j(TF1 *f_J)
   f->SetLineStyle(f_J->GetLineStyle());
   f->SetLineColor(f_J->GetLineColor());
   return f;
+}
+
+void specfit_uti::interpolate_flux_point(const TGraphErrors* g, Double_t log10en, Double_t &flux, Double_t &eflux)
+{
+  // to interpolate flux
+
+  flux = 0; // interpolated flux
+  eflux = 0; // interpolating error bars
+  if(!g)
+    {
+      fprintf(stderr, "error: interpolate_flux_point: TGraphErrors *g pointer is NULL\n");
+      return;
+    }
+  if(g->GetN() < 1)
+    return;
+  Double_t *x = g->GetX(); // array of values of energy
+  Double_t *y = g->GetY(); // array of values of flux
+  if(g->GetN() == 1)
+    {
+      flux = y[0];
+      eflux = g->GetErrorY(0);
+      return;
+    }
+  // points from which we do interpolation
+  Double_t log10en1 = 0.0, log10en2 = 0.0;
+  Double_t flux1 = 0.0, eflux1 = 0.0, flux2 = 0.0, eflux2 = 0.0;
+  // Determine the flux start and stop points (flux must be non-zero)
+  // non-zero means that the flux should be more than 1E-30 times
+  // the average value of the flux in the range under consideration
+  Double_t flux_average = 0.0;
+  for (Int_t i = 0; i < g->GetN(); i++)
+    flux_average += y[i];
+  flux_average /= (Double_t) g->GetN();
+  Int_t i_start = g->GetN() - 1;
+  Int_t i_stop = 0;
+  for (Int_t i = 0; i < g->GetN(); i++)
+    {
+      // If we landed on an actual data point then use that data point
+      // provided that the flux is not zero there
+      if(TMath::Abs(x[i] - log10en) < 1e-12 && TMath::Abs(y[i]) > 1e-30 * flux_average)
+	{
+	  flux = y[i];
+	  eflux = g->GetErrorY(i);
+	  return;
+	}
+      if(TMath::Abs(y[i]) > 1e-30 * flux_average)
+	{
+	  if(i < i_start)
+	    i_start = i;
+	  if(i > i_stop)
+	    i_stop = i;
+	}
+    }
+  // if there's only one non-zero flux point then
+  // we can only use that
+  if(i_start == i_stop)
+    {
+      flux = y[i_start];
+      eflux = g->GetErrorY(i_start);
+      return;
+    }
+  // Determine the closest lower and upper energy bounds, and
+  // so that flux is non-zero
+  Int_t i1 = i_start;
+  Int_t i2 = i_stop;
+  for (Int_t i = i_start; i <= i_stop; i++)
+    {
+      if(TMath::Abs(y[i]) < 1e-30 * flux_average)
+	continue; // use only non-zero flux points
+      // closest lower energy bound
+      if(x[i] < log10en)
+	{
+	  if(x[i] > x[i1])
+	    i1 = i;
+	}
+      // closest upper energy bound
+      if(x[i] > log10en)
+	{
+	  if(x[i] < x[i2])
+	    i2 = i;
+	}
+    }
+  // if lower bound correspond to the upper end point of the flux
+  // then use it as the upper bound and find the next
+  // closest non-zero lower bound
+  if(i1 == i_stop)
+    {
+      i2 = i_stop;
+      for (Int_t i = i_stop - 1; i >= i_start; i--)
+	{
+	  if(TMath::Abs(y[i]) < 1e-30 * flux_average)
+	    continue;
+	  i1 = i;
+	  break;
+	}
+    }
+  // if the upper bound corresponds to the lower end point of the
+  // flux then use it as the lower bound and find the next
+  // closest non-zero upper bound
+  if(i2 == i_start)
+    {
+      i1 = i_start;
+      for (Int_t i = i_start + 1; i <= i_stop; i++)
+	{
+	  if(TMath::Abs(y[i]) < 1e-30 * flux_average)
+	    continue;
+	  i2 = i;
+	  break;
+	}
+    }
+  // do logarithmic interpolation
+  g->GetPoint(i1, log10en1, flux1);
+  g->GetPoint(i2, log10en2, flux2);
+  flux = exp(log(flux1) + (log(flux2) - log(flux1)) / (log10en2 - log10en1) * (log10en - log10en1));
+  // lower error bar obtained by interpolating the lower error bars
+  eflux1 = g->GetErrorY(i1);
+  eflux2 = g->GetErrorY(i2);
+  eflux = flux / TMath::Abs(log10en2 - log10en1)
+      * sqrt(eflux1 * eflux1 / flux1 / flux1 * (log10en2 - log10en) * (log10en2 - log10en) + eflux2 * eflux2 / flux2 / flux2 * (log10en - log10en1) * (log10en - log10en1));
+}
+
+// 1st divided by the 2nd
+TGraphErrors* specfit_uti::FluxRatio(const TGraphErrors* flux1, const TGraphErrors* flux2, Bool_t ok_to_extrapolate)
+{
+  TGraphErrors *gRat = new TGraphErrors(0);
+  gRat->SetMarkerStyle(21);
+  gRat->SetLineWidth(3);
+  if(!flux1)
+    {
+      fprintf(stderr, "error: TGraphErrors *flux1 is NULL!\n");
+      return gRat;
+    }
+  if(!flux2)
+    {
+      fprintf(stderr, "error: TGraphErrors *flux2 is NULL!\n");
+      return gRat;
+    }
+  Int_t irat_point = 0;
+  for (Int_t i = 0; i < flux1->GetN(); i++)
+    {
+      Double_t log10en = 0, f1 = 0;
+      flux1->GetPoint(i, log10en, f1);
+      if(!ok_to_extrapolate)
+	{
+	  if(log10en > flux2->GetX()[flux1->GetN() - 1])
+	    continue;
+	  if(log10en < flux2->GetX()[0])
+	    continue;
+	}
+      Double_t ef1 = flux1->GetErrorY(i);
+      Double_t f2 = 0, ef2 = 0;
+      interpolate_flux_point(flux2, log10en, f2, ef2);
+      if(TMath::Abs(f1) < 1e-30 * TMath::Abs(flux1->GetY()[flux1->GetN() / 2]))
+	continue;
+      if(TMath::Abs(f2) < 1e-30 * TMath::Abs(flux2->GetY()[flux2->GetN() / 2]))
+	continue;
+      Double_t r = f1 / f2;
+      Double_t er = r * sqrt(ef1 * ef1 / f1 / f1 + ef2 * ef2 / f2 / f2);
+      gRat->SetPoint(irat_point, log10en, r);
+      gRat->SetPointError(irat_point, 0, er);
+      irat_point++;
+    }
+  gRat->GetXaxis()->CenterTitle();
+  gRat->GetYaxis()->CenterTitle();
+  gRat->GetXaxis()->SetTitleSize(0.055);
+  gRat->GetYaxis()->SetTitleSize(0.055);
+  gRat->SetMarkerStyle(24);
+  gRat->SetMarkerSize(1.5);
+  return gRat;
+}
+
+TGraphErrors* specfit_uti::FluxRatio_Energy_Bins(const TGraphErrors* flux1, const TGraphErrors* flux2, Int_t nebins, Double_t log10en_lo, Double_t log10en_up, Bool_t ok_to_extrapolate)
+{
+  // Ratio of the fluxes using binning
+
+  TGraphErrors *gRat = new TGraphErrors(0);
+  gRat->SetMarkerStyle(21);
+  gRat->SetLineWidth(3);
+  if(!flux1)
+    {
+      fprintf(stderr, "error: TGraphErrors *flux1 is NULL!\n");
+      return gRat;
+    }
+  if(!flux2)
+    {
+      fprintf(stderr, "error: TGraphErrors *flux2 is NULL!\n");
+      return gRat;
+    }
+  Int_t irat_point = 0;
+  Double_t log10en_bsize = (log10en_up - log10en_lo) / (Double_t) nebins;
+
+  Double_t log10en2_nonzero_lo = flux2->GetX()[flux2->GetN() - 1];
+  Double_t log10en2_nonzero_up = flux2->GetX()[0];
+  for (Int_t i = 0; i < flux2->GetN(); i++)
+    {
+      if(TMath::Abs(flux2->GetY()[flux2->GetN() - 1 - i]) > 1e-30 * TMath::Abs(flux2->GetY()[flux2->GetN() / 2]))
+	log10en2_nonzero_lo = flux2->GetX()[flux2->GetN() - 1 - i] - 1e-3;
+      if(TMath::Abs(flux2->GetY()[i]) > 1e-30 * TMath::Abs(flux2->GetY()[flux2->GetN() / 2]))
+ 	log10en2_nonzero_up = flux2->GetX()[i] + 1e-3;
+    }
+  for (Int_t i = 0; i < nebins; i++)
+    {
+      Double_t log10en = log10en_lo + log10en_bsize * ((Double_t) i + 0.5);
+      Double_t f1 = 0, ef1 = 0;
+      interpolate_flux_point(flux1, log10en, f1, ef1);
+      Double_t f2 = 0, ef2 = 0;
+      interpolate_flux_point(flux2, log10en, f2, ef2);
+      // don't compute the ratio after the first flux ends in all cases
+      if(log10en > flux1->GetX()[flux1->GetN() - 1])
+	continue;
+      if(log10en < flux1->GetX()[0])
+	continue;
+      if(!ok_to_extrapolate)
+	{
+	  if(log10en > log10en2_nonzero_up)
+	    continue;
+	  if(log10en < log10en2_nonzero_lo)
+	    continue;
+	}
+      if(TMath::Abs(f1) < 1e-30 * TMath::Abs(flux1->GetY()[flux1->GetN() / 2]))
+	continue;
+      if(TMath::Abs(f2) < 1e-30 * TMath::Abs(flux2->GetY()[flux2->GetN() / 2]))
+	continue;
+      Double_t r = f1 / f2;
+      Double_t er = r * sqrt(ef1 * ef1 / f1 / f1 + ef2 * ef2 / f2 / f2);
+      gRat->SetPoint(irat_point, log10en, r);
+      gRat->SetPointError(irat_point, 0, er);
+      irat_point++;
+    }
+  gRat->GetXaxis()->CenterTitle();
+  gRat->GetYaxis()->CenterTitle();
+  gRat->GetXaxis()->SetTitleSize(0.055);
+  gRat->GetYaxis()->SetTitleSize(0.055);
+  gRat->SetMarkerStyle(24);
+  gRat->SetMarkerSize(1.5);
+  return gRat;
 }
 
 NamespaceImp(specfit_uti);

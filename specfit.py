@@ -190,8 +190,14 @@ encorr_help += "Default: \'%(default)s\'\n"
 parser.add_argument("-encorr", action = "store", dest = "encorr_functions", \
                     default = ",".join((constant_encorr_function.GetName(),nonlinear_encorr_function.GetName())),\
                     help = encorr_help)
-parser.add_argument("-log10en_min", action = "store", dest="log10en_min",default=18.0,help="minimum log10(E/eV), (Default:  %(default)s)")
-parser.add_argument("-log10en_max", action = "store", dest="log10en_max",default=21.0,help="maximum log10(E/eV), (Default:  %(default)s)")
+parser.add_argument("-log10en_min", "--log10en_min", action = "store", dest="log10en_min",default=18.0,help="minimum log10(E/eV), (Default:  %(default)s)")
+parser.add_argument("-log10en_max", "--log10en_max", action = "store", dest="log10en_max",default=21.0,help="maximum log10(E/eV), (Default:  %(default)s)")
+logEshld_default = 19.1
+logEshld_fixed = None
+parser.add_argument("-fix_shld", "-fix-shoulder-energy", "-fix-shoulder-log10en",\
+                    action = "store",type=float,nargs="*",dest="logEshld_fixed",default=None,
+                    help="Fix sholder energy at {:.2f} ? Providing a number will specify that energy"\
+                    .format(logEshld_default))
 parser.add_argument("-b", action = "store_true", dest="batch_mode",help="batch mode")
 parser.add_argument("-q", action = "store_true", dest="quit_after_finishing",help="Quit after finishing")
 parser.add_argument("-s", action = "store", dest="basename", default = None, \
@@ -199,6 +205,14 @@ parser.add_argument("-s", action = "store", dest="basename", default = None, \
                         .format("%"+_dt_tok_))
 args = parser.parse_args()
 
+
+if args.logEshld_fixed != None:
+    if(len(args.logEshld_fixed) > 0):
+        logEshld_fixed = args.logEshld_fixed[0]
+    else:
+        logEshld_fixed = logEshld_default
+if logEshld_fixed != None:
+    print(logEshld_fixed)
 
 # Set the list of cosmic ray energy spectrum results to use in the fit
 spectrum_list_given = [ name for name in args.spectrum_list.split(",") if len(name) ]
@@ -259,6 +273,15 @@ ROOT.gROOT.SetBatch(args.batch_mode)
 
 # initialize the joint spectrum fitter with the chosen spectrum results
 Fit = TCRFluxFit()
+
+# fix shoulder in the fit?
+if logEshld_fixed != None:
+    if (flux_function.GetName() in ["fJ3B_18","fJ2B_19"]):
+        ipar=flux_function.GetParNumber("logEshld")
+        flux_function.SetParameter(ipar,logEshld_fixed)
+        flux_function.SetParError(ipar,0)
+
+
 Fit.SetFluxFun(flux_function)
 for key,data in SpectrumFitData.items():
     name=key
@@ -274,6 +297,7 @@ Fit.SelectEnergyRange(float(args.log10en_min),float(args.log10en_max))
 
 # do the fit and if it's successful, calculate statistical significance of the shoulder effect,
 # and plot the results
+globals()["__n_specfit_plots__"] = int(0)
 if Fit.Fit():
     # do the statistical significance calculation for the shoulder feature at ~19.1
     # Null hypothesis means no shoulder feature.  Calculate how many events one would expect,
@@ -302,6 +326,7 @@ if Fit.Fit():
     plot_type=["nevent,a,e1p", "j,a,e1p", "e3j,a,e1p"]
     # initialize correct number of canvases needed to fit all the plots
     specfit_canv.init_canvases(len(plot_type)*Fit.GetNfluxes(),min(8,Fit.GetNfluxes()))
+    globals()["__n_specfit_plots__"] = specfit_canv.get_ncanvases()
     specfit_canv.set_log(0,1,0) # want log Y scale
     # go over each canvas and plot the corresponding results
     for iplot in range(len(plot_type)*Fit.GetNfluxes()):
@@ -309,6 +334,7 @@ if Fit.Fit():
         iflux=iplot%Fit.GetNfluxes()
         flux=Fit.GetFlux(iflux)
         specfit_canv.cd(iplot+1)
+        globals()["c{:d}".format(iplot+1)] = specfit_canv.get_canvas(iplot+1)
         flux.Draw(plot_type[itype])
     specfit_canv.Update()
     if specfit_canv.get_ncanvases():
@@ -330,6 +356,16 @@ if Fit.Fit():
     sys.stdout.flush()
 
 
+def scan_parameter(ipar, npts = 40, par_lo = 0.0, par_up = 0.0, calc_deltas = True):
+    npl = specfit_canv.get_ncanvases()
+    if npl <  globals()["__n_specfit_plots__"] + 1:
+        specfit_canv.init_canvases(1)
+        npl = specfit_canv.get_ncanvases()
+        globals()["c{:d}".format(npl)] = specfit_canv.get_canvas(npl)
+    specfit_canv.cd(npl)
+    g=Fit.scan_parameter(ipar,npts,par_lo,par_up,calc_deltas)
+    g.Draw("a,L")
+    specfit_canv.Update(npl)
 
 def expand_datetime_tok(tok, cmd):
     '''expand string token into a full date time string'''

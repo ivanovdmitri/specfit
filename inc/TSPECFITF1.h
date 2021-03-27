@@ -78,23 +78,28 @@ public:
 
   virtual ~TSPECFITF1();
 
-  TString GetParNamesCS()
+  TString GetParNamesCS() const
   {
-    return cs_strings(GetNpar(), GetParNames());
+    return cs_strings(GetNpar(), &GetParNames().front());
   }
 
-  TString GetParametersCS()
+  TString GetParametersCS() const
   {
     return cs_doubles(GetNpar(), GetParameters());
   }
 
-  TString GetParErrorsCS()
+  TString GetParErrorsCS() const
   {
     return cs_doubles(GetNpar(), GetParErrors());
   }
 
+  void SetParLimitsCS(const char* csparlimits);
+  TString GetParLimitsCS() const;
+
   static TString cs_doubles(Int_t n, const Double_t *data);
   static TString cs_strings(Int_t n, const TString *data);
+  // parse comma-separated array of parameter limits "(l0,u0),(l1,u1)..."
+  static std::vector<std::pair<Double_t,Double_t> > parse_cs_doubles_pairs(const char *cs_doubles_pairs);
   // parse comma-separated array of doubles into a vector of doubles
   static std::vector<Double_t> parse_cs_doubles(const char *cs_doubles);
   // parse comma-separated strings into a vector of strings
@@ -111,10 +116,10 @@ public:
   void SetParErrorsCS(const char *csparerrors);
 
   // get parameter names into array of TString objects
-  void GetParNames(TString *parnames);
+  void GetParNames(TString *parnames) const;
 
-  // get a pointer to an array of TString objects that contains the parameter names
-  const TString* GetParNames();
+  // return a vector of TString objects that contains the parameter names
+  std::vector<TString> GetParNames() const;
 
   // combining two functions with a starting formula frm_start and coefficients c1, c2 and
   // properly combines the parameter names, values, and errors.
@@ -148,13 +153,14 @@ public:
     return GetExpFormula(this, n_offset);
   }
 
-  // offset the parameters in the fomrula of the function by some integer value n_offset
+  // multiply the two functions
+  static TSPECFITF1* Multiply(const char *newname, const TF1 *f1, const TF1 *f2);
+
+  // Scale the function formula by a constant factor
+  void Scale(Double_t c);
+
+  // offset the parameters in the formula of the function by some integer value n_offset
   static TString GetExpFormula(const TF1 *f, Int_t n_offset);
-
-private:
-
-  // internal storage of the parameter names
-  std::vector<TString> _parnames_data_;
 
 ClassDef(TSPECFITF1,1)
   ;

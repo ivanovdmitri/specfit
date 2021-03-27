@@ -5,6 +5,7 @@
 #include "TObject.h"
 #include "TString.h"
 #include "TF1.h"
+#include "TGraphErrors.h"
 #include <algorithm>
 
 namespace specfit_uti
@@ -36,6 +37,16 @@ namespace specfit_uti
 
   // to obtain E^{3}J function from J if J was constructed using formula
   TF1* get_e3j_from_j(TF1 *f_J);
+
+  // to interpolate flux
+   void interpolate_flux_point(const TGraphErrors* g, Double_t log10en, Double_t &flux, Double_t &eflux);
+
+   // to form a ratio of the fluxes
+   TGraphErrors* FluxRatio(const TGraphErrors* flux1, const TGraphErrors* flux2, Bool_t ok_to_extrapolate = false);
+
+   // Ratio of the fluxes using binning
+   TGraphErrors* FluxRatio_Energy_Bins(const TGraphErrors* flux1, const TGraphErrors* flux2, Int_t nbins, Double_t log10en_lo, Double_t log10en_up, Bool_t ok_to_extrapolate = false);
+
 
 }
 #endif

@@ -16,6 +16,7 @@ namespace specfit_canv
 {
   // Collection of routines for manipulating canvases
   extern TObjArray AllCanvases;
+  extern Int_t _arrangement_factor_;
   Int_t count_subpads(TVirtualPad *pad);
   TCanvas* get_canvas(Int_t canvas_number);
   Int_t get_ncanvases();
@@ -52,8 +53,9 @@ namespace specfit_canv
   void adjust_margins(Double_t left_margin = 0.15, 
 		      Double_t bottom_margin = 0.15, 
 		      Double_t right_margin = 0.1, 
-		      Double_t top_margin = 0.1);  
-  void arrange_canvases(Int_t arrangement_factor = 8);
+		      Double_t top_margin = 0.1);
+  void arrange_canvases(Int_t arrangement_factor);
+  void arrange_canvases();
   void Iconify(TCanvas *canv);
   void Iconify(Int_t canvas_number);
   void Iconify();
