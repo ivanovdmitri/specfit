@@ -3,10 +3,57 @@
 Specfit is as a Python/C++/ROOT utility for fitting arbitrary cosmic ray energy spectrum (flux) measurements into a model functions using binned Poisson log likelihood method and displaying the results.  Constant and nonlinear energy scale corrections are supported.
 
 * Author: Dmitri Ivanov <dmiivanov@gmail.com>
-* Release: 09/2020
+* Release: 03/2021
 
 
-## Requirements:
+## Easy installation and running using Dockerfile:
+
+
+- Requires [Docker](https://docs.docker.com/get-docker/) installed on your system
+
+
+- From the downloaded specift project folder, run:
+
+```bash
+	docker build -t specfit .
+```
+
+- Running the image will show you the manual:
+
+```bash
+	docker run specfit
+```
+
+- Run the image with an interactive shell
+
+```
+	docker run --rm -it specfit /bin/bash
+```
+
+- Running from the inside of the container
+
+```bash
+	./specfit.py --help
+```
+	    again shows the command line arguments.  Then just run
+
+```bash
+	./specfit.py
+```
+	    on the command line with the desired arguments to get the desired answer.
+	
+- It is advised to run it in batch mode using option '-b'
+
+```bash
+	./specfit.py -b
+```
+	    unless you have configured X11 forwarding for the Docker container.  When running in batch mode 
+	    (without X11 forwarding) you can save all the plots (see specfit manual) and then copy them to 
+	    some mounted volume of your choice.
+
+## Running on Linux
+
+### Requirements:
 - Linux OS
 - GCC >= 4.6.3 
 - CERN ROOT >= 5.34/36
@@ -20,7 +67,7 @@ Specfit is as a Python/C++/ROOT utility for fitting arbitrary cosmic ray energy 
 - Python >= 3.6.8
 - CERN ROOT >= 6.20/04
 
-## Install / Compile with make:
+### Install / Compile with make:
 ```bash
 cd specfit
 make cleanall
