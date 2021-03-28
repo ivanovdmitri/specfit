@@ -12,7 +12,7 @@ Specfit is as a Python/C++/ROOT utility for fitting arbitrary cosmic ray energy 
 - Requires [Docker](https://docs.docker.com/get-docker/) installed on your system
 
 
-- From the downloaded specift project folder, run:
+- From the downloaded specfit project folder, run:
 
 ```bash
 	docker build -t specfit .
@@ -42,7 +42,7 @@ Specfit is as a Python/C++/ROOT utility for fitting arbitrary cosmic ray energy 
 ```
 	    on the command line with the desired arguments to get the desired answer.
 	
-- It is advised to run it in batch mode using option '-b'
+- It is generally advised to run it in batch mode using option '-b'
 
 ```bash
 	./specfit.py -b
@@ -50,6 +50,20 @@ Specfit is as a Python/C++/ROOT utility for fitting arbitrary cosmic ray energy 
 	    unless you have configured X11 forwarding for the Docker container.  When running in batch mode 
 	    (without X11 forwarding) you can save all the plots (see specfit manual) and then copy them to 
 	    some mounted volume of your choice.
+		
+- One way of configuring X11 forwarding (tested on Ubuntu 20.04 LTS) is by running the container as follows:
+
+```bash
+	docker run  -it --network=host --env DISPLAY=$DISPLAY  --privileged   \
+	--volume="$HOME/.Xauthority:/root/.Xauthority:rw"  \
+	-v /tmp/.X11-unix:/tmp/.X11-unix --rm specfit /bin/bash
+```
+
+- Then running specfit.py should produce plots in real time:
+
+```bash
+	./specfit.py
+```
 
 ## Running on Linux
 
