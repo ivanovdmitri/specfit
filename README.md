@@ -21,7 +21,7 @@ Specfit is as a Python/C++/ROOT utility for fitting arbitrary cosmic ray energy 
 - Running the image will show you the manual:
 
 ```bash
-	docker run specfit
+	docker run --rm specfit
 ```
 
 - Run the image with an interactive shell
