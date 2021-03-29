@@ -15,7 +15,7 @@ Specfit is as a Python/C++/ROOT utility for fitting arbitrary cosmic ray energy 
 - From the downloaded specfit project folder, run (Windows):
 
 ```shell
-	C:\Users\my_user_name>\specfit docker build -t specfit .
+	C:\Users\my_user_name\specfit> docker build -t specfit .
 ```
 
 OR (Linux, e.g. Ubuntu 20.04 LTS)
@@ -94,12 +94,12 @@ OR (Linux, e.g. Ubuntu 20.04 LTS)
 - Build the docker image as usual: 
 
 ```shell
-	C:\Users\my_user_name>\specfit docker build -t specfit .
+	C:\Users\my_user_name\specfit> docker build -t specfit .
 ```
 - Run the docker image as follows:
 
 ```shell
-	C:\Users\my_user_name>\specfit docker run --rm -it --env DISPLAY=192.168.111.11:0.0 specfit .
+	C:\Users\my_user_name\specfit> docker run --rm -it --env DISPLAY=192.168.111.11:0.0 specfit .
 ```
 
 - If everything was configured correctly, ```specfit.py`` should display plots interactively:
