@@ -102,7 +102,7 @@ OR (Linux, e.g. Ubuntu 20.04 LTS)
 	C:\Users\my_user_name\specfit> docker run --rm -it --env DISPLAY=192.168.111.11:0.0 specfit .
 ```
 
-- If everything was configured correctly, ```specfit.py`` should display plots interactively:
+- If everything was configured correctly, ```specfit.py``` should display plots interactively:
 
 ```bash
 	root@docker-desktop:/specfit/build# ./specfit.py
