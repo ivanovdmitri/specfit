@@ -12,49 +12,55 @@ Specfit is as a Python/C++/ROOT utility for fitting arbitrary cosmic ray energy 
 - Requires [Docker](https://docs.docker.com/get-docker/) installed on your system
 
 
-- From the downloaded specfit project folder, run:
+- From the downloaded specfit project folder, run (Windows):
 
-```bash
-	docker build -t specfit .
+```shell
+	C:\Users\my_user_name>\specfit docker build -t specfit .
+```
+
+OR (Linux, e.g. Ubuntu 20.04 LTS)
+
+```shell
+	my_user_name@my_host_name:~/path/to/specfit$ docker build -t specfit .
 ```
 
 - Running the image will show you the manual:
 
-```bash
+```shell
 	docker run --rm specfit
 ```
 
 - Run the image with an interactive shell
 
-```
+```shell
 	docker run --rm -it specfit /bin/bash
 ```
 
 - Running from the inside of the container
 
 ```bash
-	./specfit.py --help
+	root@docker-desktop:/specfit/build# ./specfit.py --help
 ```
 	    again shows the command line arguments.  Then just run
 
 ```bash
-	./specfit.py
+	root@docker-desktop:/specfit/build# ./specfit.py
 ```
 	    on the command line with the desired arguments to get the desired answer.
 	
 - It is generally advised to run it in batch mode using option '-b'
 
 ```bash
-	./specfit.py -b
+	root@docker-desktop:/specfit/build# ./specfit.py -b
 ```
 	    unless you have configured X11 forwarding for the Docker container.  When running in batch mode 
 	    (without X11 forwarding) you can save all the plots (see specfit manual) and then copy them to 
 	    some mounted volume of your choice.
 		
-- One way of configuring X11 forwarding (tested on Ubuntu 20.04 LTS) is by running the container as follows:
+### Show GUI on Linux: one way of configuring X11 forwarding (tested on Ubuntu 20.04 LTS) is by running the container as follows:
 
 ```bash
-	docker run  -it --network=host --env DISPLAY=$DISPLAY  --privileged   \
+	$ docker run  -it --network=host --env DISPLAY=$DISPLAY  --privileged   \
 	--volume="$HOME/.Xauthority:/root/.Xauthority:rw"  \
 	-v /tmp/.X11-unix:/tmp/.X11-unix --rm specfit /bin/bash
 ```
@@ -62,10 +68,50 @@ Specfit is as a Python/C++/ROOT utility for fitting arbitrary cosmic ray energy 
 - Then running specfit.py should produce plots in real time:
 
 ```bash
-	./specfit.py
+	root@docker-desktop:/specfit/build# ./specfit.py
 ```
 
-## Running on Linux
+### Show GUI on Windows: one way of configuring X11 forwarding (tested on Windows 10) is as follows:
+- Install an X Window System Server (either one of the following would work):
+  - [VcXsrv](https://sourceforge.net/projects/vcxsrv/) (free)
+  - [Xming](http://www.straightrunning.com/XmingNotes/)
+  - [Cygwin/X](https://x.cygwin.com/)  (free)
+
+- Be sure that the X-server you've installed is running and accepting TCP/IP connections:
+  - In the case of Xming or VcXsrv servers, choose 'Disable access control' option when running XLaunch app
+  - In the case of Cygwin/X (XWin server) start it as:
+  
+	```bash
+		$ xwin :0 -multiwindow -listen tcp
+	```
+- Find your IPv4 address on local network. In Windows shell, run:
+
+```shell
+	C:\Users\my_user_name>ipconfig
+```
+	- For example, let's assume your IPv4 address is 192.168.111.11
+
+- Build the docker image as usual: 
+
+```shell
+	C:\Users\my_user_name>\specfit docker build -t specfit .
+```
+- Run the docker image as follows:
+
+```shell
+	C:\Users\my_user_name>\specfit docker run --rm -it --env DISPLAY=192.168.111.11:0.0 specfit .
+```
+
+- If everything was configured correctly, ```specfit.py`` should display plots interactively:
+
+```bash
+	root@docker-desktop:/specfit/build# ./specfit.py
+```
+
+- **Notice: in the above exercise, we are exposing the X server to the network.**  Use caution, especially if your computer is
+  directly connected to the internet.
+
+## Running on Linux without Docker
 
 ### Requirements:
 - Linux OS
