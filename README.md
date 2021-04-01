@@ -1,6 +1,6 @@
 # SPECFIT
 
-Specfit is as a Python/C++/ROOT utility for fitting arbitrary cosmic ray energy spectrum (flux) measurements into a model functions using binned Poisson log likelihood method and displaying the results.  Constant and nonlinear energy scale corrections are supported.
+Specfit is as a Python/C++/ROOT utility for fitting arbitrary cosmic ray energy spectrum (flux) measurements into model functions using binned Poisson log likelihood method and displaying the results.  Constant and nonlinear energy scale corrections are supported.
 
 * Author: Dmitri Ivanov <dmiivanov@gmail.com>
 * Release: 03/2021
